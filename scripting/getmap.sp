@@ -26,11 +26,11 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	RegAdminCmd("sm_getmap", Command_GetMap, ADMFLAG_CHANGEMAP, "Download a map to use in the server");
-	RegAdminCmd("sm_downloadmap", Command_GetMap, ADMFLAG_CHANGEMAP, "Download a map to use in the server");
+	RegAdminCmd("sm_getmap", Command_GetMap, ADMFLAG_CHANGEMAP, "Download a bz2 compressed map file to use in the server");
+	RegAdminCmd("sm_downloadmap", Command_GetMap, ADMFLAG_CHANGEMAP, "Download a bz2 compressed map file to use in the server");
 
 	gCV_PublicURL = new Convar("gm_public_url", "http://sojourner.me/fastdl/maps/", "Replace with a public FastDL URL containing maps for your respective game, the default one is for CS:S.");
-	gCV_FastDLPath = new Convar("gm_fastdl_path", "../../public_html/fastdl/maps", "Path to your FastDL's map directory, relative to the game's folder.");
+	gCV_FastDLPath = new Convar("gm_fastdl_path", "../../public_html/fastdl/maps", "Path to your FastDL's map directory, relative to the game's folder (cstrike/csgo/etc).");
 	gCV_ReplaceMap = new Convar("gm_replace_map", "0", "Specifies whether or not to replace the map if it already exists.");
 
 	Convar.AutoExecConfig();
@@ -56,16 +56,29 @@ public Action Command_GetMap(int client, int args)
 	char publicURL[PLATFORM_MAX_PATH];
 	gCV_PublicURL.GetString(publicURL, sizeof(publicURL));
 
-	if(publicURL[strlen(publicURL) - 1] != '/')
+	int idx = strlen(publicURL) - 1;
+
+	if(idx == -1)
+	{
+		ReplyToCommand(client, "Invalid public URL path, please update cvar: gm_public_url");
+
+		return Plugin_Handled;
+	}
+	else if(publicURL[idx] != '/')
 	{
 		StrCat(publicURL, sizeof(publicURL), "/");
 	}
 
 	gCV_FastDLPath.GetString(gS_FastDLPath, sizeof(gS_FastDLPath));
-
-	int idx = strlen(gS_FastDLPath) - 1;
+	idx = strlen(gS_FastDLPath) - 1;
 	
-	if(gS_FastDLPath[idx] == '/')
+	if(idx == -1)
+	{
+		ReplyToCommand(client, "Invalid fastdl path, please update cvar: gm_fastdl_path");
+
+		return Plugin_Handled;
+	}
+	else if(gS_FastDLPath[idx] == '/')
 	{
 		gS_FastDLPath[idx] = '\0';
 	}
@@ -75,7 +88,7 @@ public Action Command_GetMap(int client, int args)
 
 	if((FileExists(gS_MapPath) || FileExists(gS_FastDLPath)) && !gCV_ReplaceMap.BoolValue)
 	{
-		ReplyToCommand(client, "Map already exists in map/fastdl folder! To allow replacing, use the cvar: gm_replace_map");
+		ReplyToCommand(client, "Map already exists in map/fastdl folder! To allow replacing, use the cvar: gm_replace_map or edit the plugin's cfg file.");
 
 		return Plugin_Handled;
 	}
@@ -102,7 +115,7 @@ void OnMapFileDownloaded(HTTPStatus status, DataPack data)
 	int client = data.ReadCell();
 
 	char mapName[PLATFORM_MAX_PATH];
-	data.ReadString(mapName, PLATFORM_MAX_PATH);
+	data.ReadString(mapName, sizeof(mapName));
 
 	if(status != HTTPStatus_OK)
 	{
@@ -126,7 +139,7 @@ void OnDecompressFile(BZ_Error iError, char[] inFile, char[] outFile, DataPack d
 	int client = data.ReadCell();
 
 	char mapName[PLATFORM_MAX_PATH];
-	data.ReadString(mapName, PLATFORM_MAX_PATH);
+	data.ReadString(mapName, sizeof(mapName));
 
 	delete data;
 
