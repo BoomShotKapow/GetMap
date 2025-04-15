@@ -34,7 +34,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_download", Command_GetMap, ADMFLAG_CHANGEMAP, "Download a bz2 compressed map file to use in the server");
 	RegAdminCmd("sm_downloadmap", Command_GetMap, ADMFLAG_CHANGEMAP, "Download a bz2 compressed map file to use in the server");
 
-	gCV_PublicURL = new Convar("gm_public_url", "http://sojourner.me/fastdl/maps/", "Replace with a public FastDL URL containing maps for your respective game, the default one is for (cstrike).");
+	gCV_PublicURL = new Convar("gm_public_url", "https://main.fastdl.me/maps/", "Replace with a public FastDL URL containing maps for your respective game, the default one is for (cstrike).");
 	gCV_MapsPath = new Convar("gm_maps_path", "maps/", "Path to where the decompressed map file will go to. If blank, it'll be the game's folder (cstrike, csgo, tf, etc.)");
 	gCV_FastDLPath = new Convar("gm_fastdl_path", "maps/", "Path to where the compressed map file will go to. If blank, it'll be the game's folder (cstrike, csgo, tf, etc.)");
 	gCV_ReplaceMap = new Convar("gm_replace_map", "0", "Specifies whether or not to replace the map if it already exists.", _, true, 0.0, true, 1.0);
@@ -48,7 +48,6 @@ public Action Command_GetMap(int client, int args)
 	if(args < 1)
 	{
 		ReplyToCommand(client, "Usage: sm_getmap <mapname>");
-
 		return Plugin_Handled;
 	}
 
@@ -58,7 +57,6 @@ public Action Command_GetMap(int client, int args)
 	if(mapName[0] == '\0')
 	{
 		ReplyToCommand(client, "Usage: sm_getmap <mapname>");
-
 		return Plugin_Handled;
 	}
 
@@ -70,25 +68,21 @@ public Action Command_GetMap(int client, int args)
 	if(gS_PublicURL[0] == '\0')
 	{
 		ReplyToCommand(client, "Invalid public URL path, please update cvar: gm_public_url");
-
 		return Plugin_Handled;
 	}
 	else if(!FormatOutputPath(gS_MapPath, sizeof(gS_MapPath), gS_MapPrefix, mapName, ".bsp"))
 	{
 		ReplyToCommand(client, "Invalid maps path, please update cvar: gm_maps_path");
-
 		return Plugin_Handled;
 	}
 	else if(!FormatOutputPath(gS_FastDLPath, sizeof(gS_FastDLPath), gS_MapPrefix, mapName, ".bsp.bz2"))
 	{
 		ReplyToCommand(client, "Invalid fastdl path, please update cvar: gm_fastdl_path");
-
 		return Plugin_Handled;
 	}
 	else if((FileExists(gS_MapPath) || FileExists(gS_FastDLPath)) && !gCV_ReplaceMap.BoolValue)
 	{
-		ReplyToCommand(client, "Map already exists in maps or fastdl folder! To allow replacing, use the cvar: gm_replace_map or edit the plugin's cfg file.");
-
+		ReplyToCommand(client, "Map already exists in maps or fastdl folder! Use gm_replace_map to allow replacing.");
 		return Plugin_Handled;
 	}
 
@@ -106,6 +100,7 @@ public Action Command_GetMap(int client, int args)
 	DataPack data = new DataPack();
 	data.WriteCell(client);
 	data.WriteString(mapName);
+	data.WriteString(gS_FastDLPath); // Important: required for deletion
 
 	gHC_HttpClient = new HTTPClient(gS_PublicURL);
 	gHC_HttpClient.DownloadFile(endPoint, gS_FastDLPath, OnMapFileDownloaded, data);
@@ -128,12 +123,9 @@ bool FormatOutputPath(char[] path, int maxlen, char[] prefix, const char[] mapNa
 	char temp[PLATFORM_MAX_PATH];
 	strcopy(temp, sizeof(temp), path);
 
-	if(prefix[0] != '\0')
+	if(prefix[0] != '\0' && prefix[strlen(prefix) - 1] != '_')
 	{
-		if(prefix[strlen(prefix) - 1] != '_')
-		{
-			StrCat(prefix, sizeof(gS_MapPrefix), "_");
-		}
+		StrCat(prefix, sizeof(gS_MapPrefix), "_");
 	}
 
 	if(StrContains(mapName, prefix, false) == -1)
@@ -158,7 +150,7 @@ void OnMapFileDownloaded(HTTPStatus status, DataPack data)
 	char mapName[PLATFORM_MAX_PATH];
 	data.ReadString(mapName, sizeof(mapName));
 
-	if(status != HTTPStatus_OK)
+	if(status != HTTPStatus_OK && status != HTTPStatus_Found)
 	{
 		LogError("GetMap: Failed to download %s: HTTPStatus (%d)", mapName, status);
 		ReplyToCommand(client, "Failed to download %s: HTTPStatus (%d)", mapName, status);
@@ -169,12 +161,10 @@ void OnMapFileDownloaded(HTTPStatus status, DataPack data)
 		}
 
 		delete data;
-
 		return;
 	}
 
 	ReplyToCommand(client, "Decompressing map file, please wait...");
-
 	BZ2_DecompressFile(gS_FastDLPath, gS_MapPath, OnDecompressFile, data);
 }
 
@@ -187,14 +177,24 @@ void OnDecompressFile(BZ_Error iError, char[] inFile, char[] outFile, DataPack d
 	char mapName[PLATFORM_MAX_PATH];
 	data.ReadString(mapName, sizeof(mapName));
 
+	char fastdlFile[PLATFORM_MAX_PATH];
+	data.ReadString(fastdlFile, sizeof(fastdlFile));
+
 	delete data;
 
 	if(iError != BZ_OK)
 	{
-		LogError("GetMap: Failed to decompress %s: BZ_Error (%d)", inFile, iError);
-		ReplyToCommand(client, "Failed to decompress %s: BZ_Error (%d)", inFile, iError);
-
+		LogError("GetMap: Failed to decompress %s: BZ_Error (%d)", fastdlFile, iError);
+		ReplyToCommand(client, "Failed to decompress %s: BZ_Error (%d)", fastdlFile, iError);
 		return;
+	}
+
+	if(FileExists(fastdlFile))
+	{
+		if (!DeleteFile(fastdlFile))
+		{
+			LogError("GetMap: Could not delete %s", fastdlFile);
+		}
 	}
 
 	ReplyToCommand(client, "Map successfully added to the server! Use !map %s to change to it.", mapName);
