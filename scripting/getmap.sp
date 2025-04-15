@@ -34,7 +34,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_download", Command_GetMap, ADMFLAG_CHANGEMAP, "Download a bz2 compressed map file to use in the server");
 	RegAdminCmd("sm_downloadmap", Command_GetMap, ADMFLAG_CHANGEMAP, "Download a bz2 compressed map file to use in the server");
 
-	gCV_PublicURL = new Convar("gm_public_url", "http://sojourner.me/fastdl/maps/", "Replace with a public FastDL URL containing maps for your respective game, the default one is for (cstrike).");
+	gCV_PublicURL = new Convar("gm_public_url", "https://main.fastdl.me/maps/", "Replace with a public FastDL URL containing maps for your respective game, the default one is for (cstrike).");
 	gCV_MapsPath = new Convar("gm_maps_path", "maps/", "Path to where the decompressed map file will go to. If blank, it'll be the game's folder (cstrike, csgo, tf, etc.)");
 	gCV_FastDLPath = new Convar("gm_fastdl_path", "maps/", "Path to where the compressed map file will go to. If blank, it'll be the game's folder (cstrike, csgo, tf, etc.)");
 	gCV_ReplaceMap = new Convar("gm_replace_map", "0", "Specifies whether or not to replace the map if it already exists.", _, true, 0.0, true, 1.0);
@@ -158,7 +158,7 @@ void OnMapFileDownloaded(HTTPStatus status, DataPack data)
 	char mapName[PLATFORM_MAX_PATH];
 	data.ReadString(mapName, sizeof(mapName));
 
-	if(status != HTTPStatus_OK)
+	if(status != HTTPStatus_OK && status != HTTPStatus_Found)
 	{
 		LogError("GetMap: Failed to download %s: HTTPStatus (%d)", mapName, status);
 		ReplyToCommand(client, "Failed to download %s: HTTPStatus (%d)", mapName, status);
