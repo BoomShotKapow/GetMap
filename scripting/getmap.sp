@@ -14,7 +14,7 @@ Convar gCV_MapPrefix = null;
 
 char gS_PublicURL[PLATFORM_MAX_PATH];
 char gS_MapPath[PLATFORM_MAX_PATH];
-char gS_FastDLPath[PLATFORM_MAX_PATH];
+char gS_DownloadPath[PLATFORM_MAX_PATH];
 char gS_MapPrefix[16];
 
 HTTPClient gHC_HttpClient = null;
@@ -36,7 +36,7 @@ public void OnPluginStart()
 
 	gCV_PublicURL = new Convar("gm_public_url", "https://main.fastdl.me/maps/", "Replace with a public FastDL URL containing maps for your respective game, the default one is for (cstrike).");
 	gCV_MapsPath = new Convar("gm_maps_path", "maps/", "Path to where the decompressed map file will go to. If blank, it'll be the game's folder (cstrike, csgo, tf, etc.)");
-	gCV_FastDLPath = new Convar("gm_fastdl_path", "maps/", "Path to where the compressed map file will go to. If blank, it'll be the game's folder (cstrike, csgo, tf, etc.)");
+	gCV_FastDLPath = new Convar("gm_download_path", "maps/", "Path to where the compressed map file will download to. If blank, it'll be the game's folder (cstrike, csgo, tf, etc.)");
 	gCV_ReplaceMap = new Convar("gm_replace_map", "0", "Specifies whether or not to replace the map if it already exists.", _, true, 0.0, true, 1.0);
 	gCV_MapPrefix = new Convar("gm_map_prefix", "", "Use map prefix before every map name when using the command, for example using a prefix of \"bhop_\", sm_getmap arcane, would search for bhop_arcane");
 
@@ -62,7 +62,7 @@ public Action Command_GetMap(int client, int args)
 
 	gCV_PublicURL.GetString(gS_PublicURL, sizeof(gS_PublicURL));
 	gCV_MapsPath.GetString(gS_MapPath, sizeof(gS_MapPath));
-	gCV_FastDLPath.GetString(gS_FastDLPath, sizeof(gS_FastDLPath));
+	gCV_FastDLPath.GetString(gS_DownloadPath, sizeof(gS_DownloadPath));
 	gCV_MapPrefix.GetString(gS_MapPrefix, sizeof(gS_MapPrefix));
 
 	if(gS_PublicURL[0] == '\0')
@@ -75,12 +75,12 @@ public Action Command_GetMap(int client, int args)
 		ReplyToCommand(client, "Invalid maps path, please update cvar: gm_maps_path");
 		return Plugin_Handled;
 	}
-	else if(!FormatOutputPath(gS_FastDLPath, sizeof(gS_FastDLPath), gS_MapPrefix, mapName, ".bsp.bz2"))
+	else if(!FormatOutputPath(gS_DownloadPath, sizeof(gS_DownloadPath), gS_MapPrefix, mapName, ".bsp.bz2"))
 	{
-		ReplyToCommand(client, "Invalid fastdl path, please update cvar: gm_fastdl_path");
+		ReplyToCommand(client, "Invalid fastdl path, please update cvar: gm_download_path");
 		return Plugin_Handled;
 	}
-	else if((FileExists(gS_MapPath) || FileExists(gS_FastDLPath)) && !gCV_ReplaceMap.BoolValue)
+	else if((FileExists(gS_MapPath) || FileExists(gS_DownloadPath)) && !gCV_ReplaceMap.BoolValue)
 	{
 		ReplyToCommand(client, "Map already exists in maps or fastdl folder! Use gm_replace_map to allow replacing.");
 		return Plugin_Handled;
@@ -100,10 +100,10 @@ public Action Command_GetMap(int client, int args)
 	DataPack data = new DataPack();
 	data.WriteCell(client);
 	data.WriteString(mapName);
-	data.WriteString(gS_FastDLPath); // Important: required for deletion
+	data.WriteString(gS_DownloadPath); // Important: required for deletion
 
 	gHC_HttpClient = new HTTPClient(gS_PublicURL);
-	gHC_HttpClient.DownloadFile(endPoint, gS_FastDLPath, OnMapFileDownloaded, data);
+	gHC_HttpClient.DownloadFile(endPoint, gS_DownloadPath, OnMapFileDownloaded, data);
 
 	return Plugin_Handled;
 }
@@ -155,9 +155,9 @@ void OnMapFileDownloaded(HTTPStatus status, DataPack data)
 		LogError("GetMap: Failed to download %s: HTTPStatus (%d)", mapName, status);
 		ReplyToCommand(client, "Failed to download %s: HTTPStatus (%d)", mapName, status);
 
-		if(FileExists(gS_FastDLPath))
+		if(FileExists(gS_DownloadPath))
 		{
-			DeleteFile(gS_FastDLPath);
+			DeleteFile(gS_DownloadPath);
 		}
 
 		delete data;
@@ -165,7 +165,7 @@ void OnMapFileDownloaded(HTTPStatus status, DataPack data)
 	}
 
 	ReplyToCommand(client, "Decompressing map file, please wait...");
-	BZ2_DecompressFile(gS_FastDLPath, gS_MapPath, OnDecompressFile, data);
+	BZ2_DecompressFile(gS_DownloadPath, gS_MapPath, OnDecompressFile, data);
 }
 
 void OnDecompressFile(BZ_Error iError, char[] inFile, char[] outFile, DataPack data)
